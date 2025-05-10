@@ -1,3 +1,8 @@
+<?php
+global $wpdb;
+$table = $wpdb->prefix . 'throwaway_logs';
+?>
+
 <div class="wrap">
     <h1>throwaway.cloud E-Mail Check Settings</h1>
     <form method="post" action="options.php">
@@ -14,7 +19,7 @@
                         <option value="domain" <?php selected(get_option('throwaway_lookup_log_level'), 'domain'); ?>>Domain Only</option>
                         <option value="full" <?php selected(get_option('throwaway_lookup_log_level'), 'full'); ?>>Full Email Address</option>
                     </select>
-                    <p class="description">For debugging, and auditing, choose what gets stored in the log. Domain only is a common GDPR-friendly option.</p>
+                    <p class="description">Choose what gets stored in the log. Domain only is a common GDPR-friendly option.</p>
                 </td>
             </tr>
             <tr valign="top">
@@ -38,12 +43,6 @@
 
     <hr>
     <h2>Log Viewer</h2>
-    <form method="post" style="margin-top: 1em;">
-        <input type="hidden" name="export_filtered_logs" value="1" />
-        <input type="hidden" name="log_filter_context" value="<?php echo esc_attr($_GET['log_filter_context'] ?? ''); ?>" />
-        <input type="hidden" name="log_filter_email" value="<?php echo esc_attr($_GET['log_filter_email'] ?? ''); ?>" />
-        <input type="submit" class="button button-secondary" value="Export Filtered Logs as CSV" />
-    </form>
     <form method="get">
         <input type="hidden" name="page" value="throwaway-lookup" />
         <label for="log_filter_context">Context:</label>
@@ -52,6 +51,7 @@
         <input type="text" name="log_filter_email" value="<?php echo esc_attr($_GET['log_filter_email'] ?? ''); ?>" />
         <input type="submit" class="button" value="Filter Logs" />
     </form>
+
     <table class="widefat striped">
         <thead>
             <tr>
@@ -64,8 +64,6 @@
         </thead>
         <tbody>
             <?php
-            global $wpdb;
-            $table = $wpdb->prefix . 'throwaway_logs';
             $where = [];
             $params = [];
 
@@ -73,19 +71,20 @@
                 $where[] = "context = %s";
                 $params[] = sanitize_text_field($_GET['log_filter_context']);
             }
+
             if (!empty($_GET['log_filter_email'])) {
                 $where[] = "email LIKE %s";
-                $params[] = '%' . sanitize_text_field($_GET['log_filter_email']) . '%';
+                $params[] = '%' . $wpdb->esc_like(sanitize_text_field($_GET['log_filter_email'])) . '%';
             }
 
             $sql = "SELECT * FROM {$table}";
             if ($where) {
                 $sql .= " WHERE " . implode(" AND ", $where);
+                $sql = $wpdb->prepare($sql, ...$params);
             }
             $sql .= " ORDER BY timestamp DESC LIMIT 50";
 
-            $logs = $params ? $wpdb->get_results($wpdb->prepare($sql, ...$params)) : $wpdb->get_results($sql);
-
+            $logs = $wpdb->get_results($sql);
             if ($logs) {
                 foreach ($logs as $row) {
                     echo '<tr>';
@@ -100,53 +99,17 @@
                 echo '<tr><td colspan="5">No logs found.</td></tr>';
             }
 
-            if (isset($_POST['export_filtered_logs'])) {
-                $context_filter = sanitize_text_field($_POST['log_filter_context'] ?? '');
-                $email_filter = sanitize_text_field($_POST['log_filter_email'] ?? '');
-                $where = [];
-                $params = [];
-
-                if ($context_filter) {
-                    $where[] = "context = %s";
-                    $params[] = $context_filter;
-                }
-
-                if ($email_filter) {
-                    $where[] = "email LIKE %s";
-                    $params[] = '%' . $email_filter . '%';
-                }
-
-                $sql = "SELECT * FROM {$table}";
-                if ($where) {
-                    $sql .= " WHERE " . implode(" AND ", $where);
-                }
-
-                $logs = $params ? $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A) : $wpdb->get_results($sql, ARRAY_A);
-
-                if (!empty($logs)) {
-                    header('Content-Type: text/csv');
-                    header('Content-Disposition: attachment; filename="filtered-logs.csv"');
-                    $out = fopen('php://output', 'w');
-                    fputcsv($out, array_keys($logs[0]));
-                    foreach ($logs as $log) {
-                        fputcsv($out, $log);
-                    }
-                    fclose($out);
-                    exit;
-                } else {
-                    echo '<div class="notice notice-warning"><p>No logs matched your filters.</p></div>';
-                }
-            }
-
             if (isset($_POST['gdpr_subject'])) {
                 $subject = sanitize_text_field($_POST['gdpr_subject']);
+                $like = '%' . $wpdb->esc_like($subject) . '%';
+
                 if (isset($_POST['delete_subject_logs'])) {
-                    $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($subject) . '%'));
+                    $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", $like));
                     echo '<div class="updated"><p>Logs deleted for: ' . esc_html($subject) . '</p></div>';
                 }
 
                 if (isset($_POST['export_subject_logs'])) {
-                    $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($subject) . '%'), ARRAY_A);
+                    $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", $like), ARRAY_A);
                     if (!empty($logs)) {
                         header('Content-Type: text/csv');
                         header('Content-Disposition: attachment; filename="subject-logs.csv"');
