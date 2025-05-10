@@ -9,6 +9,10 @@ $table = $wpdb->prefix . 'throwaway_logs';
         <?php
         settings_fields('throwaway_lookup_settings');
         do_settings_sections('throwaway_lookup_settings');
+
+        $log_filter_context = sanitize_text_field($_GET['log_filter_context'] ?? '');
+        $log_filter_email = sanitize_text_field($_GET['log_filter_email'] ?? '');
+        $gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
         ?>
         <table class="form-table">
             <tr valign="top">
@@ -46,9 +50,9 @@ $table = $wpdb->prefix . 'throwaway_logs';
     <form method="get">
         <input type="hidden" name="page" value="throwaway-lookup" />
         <label for="log_filter_context">Context:</label>
-        <input type="text" name="log_filter_context" value="<?php echo esc_attr($_GET['log_filter_context'] ?? ''); ?>" />
+        <input type="text" name="log_filter_context" value="<?php echo esc_attr($log_filter_context); ?>" />
         <label for="log_filter_email">Email/Domain:</label>
-        <input type="text" name="log_filter_email" value="<?php echo esc_attr($_GET['log_filter_email'] ?? ''); ?>" />
+        <input type="text" name="log_filter_email" value="<?php echo esc_attr($log_filter_email); ?>" />
         <input type="submit" class="button" value="Filter Logs" />
     </form>
 
@@ -67,14 +71,14 @@ $table = $wpdb->prefix . 'throwaway_logs';
             $where = [];
             $params = [];
 
-            if (!empty($_GET['log_filter_context'])) {
+            if (!empty($log_filter_context)) {
                 $where[] = "context = %s";
-                $params[] = sanitize_text_field($_GET['log_filter_context']);
+                $params[] = $log_filter_context;
             }
 
-            if (!empty($_GET['log_filter_email'])) {
+            if (!empty($log_filter_email)) {
                 $where[] = "email LIKE %s";
-                $params[] = '%' . $wpdb->esc_like(sanitize_text_field($_GET['log_filter_email'])) . '%';
+                $params[] = '%' . $wpdb->esc_like($log_filter_email) . '%';
             }
 
             $sql = "SELECT * FROM {$table}";
@@ -99,13 +103,12 @@ $table = $wpdb->prefix . 'throwaway_logs';
                 echo '<tr><td colspan="5">No logs found.</td></tr>';
             }
 
-            if (isset($_POST['gdpr_subject'])) {
-                $subject = sanitize_text_field($_POST['gdpr_subject']);
-                $like = '%' . $wpdb->esc_like($subject) . '%';
+            if (!empty($gdpr_subject)) {
+                $like = '%' . $wpdb->esc_like($gdpr_subject) . '%';
 
                 if (isset($_POST['delete_subject_logs'])) {
                     $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", $like));
-                    echo '<div class="updated"><p>Logs deleted for: ' . esc_html($subject) . '</p></div>';
+                    echo '<div class="updated"><p>Logs deleted for: ' . esc_html($gdpr_subject) . '</p></div>';
                 }
 
                 if (isset($_POST['export_subject_logs'])) {
@@ -121,7 +124,7 @@ $table = $wpdb->prefix . 'throwaway_logs';
                         fclose($out);
                         exit;
                     } else {
-                        echo '<div class="notice notice-warning"><p>No logs found for: ' . esc_html($subject) . '</p></div>';
+                        echo '<div class="notice notice-warning"><p>No logs found for: ' . esc_html($gdpr_subject) . '</p></div>';
                     }
                 }
             }
