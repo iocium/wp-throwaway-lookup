@@ -1,4 +1,4 @@
-# 🚫 throwaway.cloud E-Mail Check for WordPress
+# 🚫 throwaway.cloud E-Mail Check
 
 Detect and block disposable or temporary email addresses in comments, registrations, and contact forms — with full GDPR/CCPA-compliant logging and developer hooks.
 

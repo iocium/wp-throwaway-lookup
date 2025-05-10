@@ -1,8 +1,8 @@
-=== throwaway.cloud E-Mail Check for WordPress ===
+=== throwaway.cloud E-Mail Check ===
 Contributors: iocium
-Tags: spam, email validation, disposable email, gdpr, privacy, registration, comment
+Tags: spam, email validation, disposable email, throwaway email, signup spam
 Requires at least: 5.0
-Tested up to: 6.5
+Tested up to: 6.8
 Requires PHP: 7.2
 Stable tag: 1.0.0
 License: MIT
@@ -12,7 +12,7 @@ Protect your WordPress site by detecting and blocking disposable email addresses
 
 == Description ==
 
-throwaway.cloud E-Mail Check for WordPress protects your WordPress site from temporary or disposable email abuse.
+throwaway.cloud E-Mail Check protects your WordPress site from temporary or disposable email abuse.
 
 = Features =
 * Blocks disposable emails via [throwaway.cloud](https://throwaway.cloud) API
