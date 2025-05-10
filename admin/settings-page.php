@@ -40,6 +40,7 @@ $table = $wpdb->prefix . 'throwaway_logs';
     <hr>
     <h2>GDPR Tools</h2>
     <form method="post">
+        <?php wp_nonce_field('gdpr_tools_nonce', 'gdpr_tools_nonce_field'); ?>
         <input type="text" name="gdpr_subject" placeholder="Enter email or domain" required />
         <input type="submit" name="export_subject_logs" class="button" value="Export Logs (CSV)" />
         <input type="submit" name="delete_subject_logs" class="button button-danger" value="Delete Logs" />
@@ -104,28 +105,32 @@ $table = $wpdb->prefix . 'throwaway_logs';
             }
 
             if (!empty($gdpr_subject)) {
-                $like = '%' . $wpdb->esc_like($gdpr_subject) . '%';
+                if (isset($_POST['gdpr_tools_nonce_field']) && check_admin_referer('gdpr_tools_nonce', 'gdpr_tools_nonce_field')) {
+                    $like = '%' . $wpdb->esc_like($gdpr_subject) . '%';
 
-                if (isset($_POST['delete_subject_logs'])) {
-                    $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", $like));
-                    echo '<div class="updated"><p>Logs deleted for: ' . esc_html($gdpr_subject) . '</p></div>';
-                }
-
-                if (isset($_POST['export_subject_logs'])) {
-                    $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", $like), ARRAY_A);
-                    if (!empty($logs)) {
-                        header('Content-Type: text/csv');
-                        header('Content-Disposition: attachment; filename="subject-logs.csv"');
-                        $out = fopen('php://output', 'w');
-                        fputcsv($out, array_keys($logs[0]));
-                        foreach ($logs as $log) {
-                            fputcsv($out, $log);
-                        }
-                        fclose($out);
-                        exit;
-                    } else {
-                        echo '<div class="notice notice-warning"><p>No logs found for: ' . esc_html($gdpr_subject) . '</p></div>';
+                    if (isset($_POST['delete_subject_logs'])) {
+                        $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", $like));
+                        echo '<div class="updated"><p>Logs deleted for: ' . esc_html($gdpr_subject) . '</p></div>';
                     }
+
+                    if (isset($_POST['export_subject_logs'])) {
+                        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", $like), ARRAY_A);
+                        if (!empty($logs)) {
+                            header('Content-Type: text/csv');
+                            header('Content-Disposition: attachment; filename="subject-logs.csv"');
+                            $out = fopen('php://output', 'w');
+                            fputcsv($out, array_keys($logs[0]));
+                            foreach ($logs as $log) {
+                                fputcsv($out, $log);
+                            }
+                            fclose($out);
+                            exit;
+                        } else {
+                            echo '<div class="notice notice-warning"><p>No logs found for: ' . esc_html($gdpr_subject) . '</p></div>';
+                        }
+                    }
+                } else {
+                    echo '<div class="notice notice-error"><p>Nonce verification failed.</p></div>';
                 }
             }
             ?>
