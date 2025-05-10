@@ -147,8 +147,8 @@ class ThrowawayEmailLookup {
     }
 
     public function register_settings() {
-        register_setting('throwaway_lookup_settings', self::OPTION_LOG_LEVEL);
-        register_setting('throwaway_lookup_settings', self::OPTION_ALLOWED);
+        register_setting('throwaway_lookup_settings', self::OPTION_LOG_LEVEL, ['sanitize_callback' => 'sanitize_text_field']);
+        register_setting('throwaway_lookup_settings', self::OPTION_ALLOWED, ['sanitize_callback' => 'sanitize_textarea_field']);
     }
 
     public function settings_page() {
