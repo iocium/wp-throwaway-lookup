@@ -1,6 +1,10 @@
 <?php
 global $wpdb;
 $table = $wpdb->prefix . 'throwaway_logs';
+
+$log_filter_context = sanitize_text_field($_GET['log_filter_context'] ?? '');
+$log_filter_email = sanitize_text_field($_GET['log_filter_email'] ?? '');
+$gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
 ?>
 
 <div class="wrap">
@@ -9,19 +13,27 @@ $table = $wpdb->prefix . 'throwaway_logs';
         <?php
         settings_fields('throwaway_lookup_settings');
         do_settings_sections('throwaway_lookup_settings');
-
-        $log_filter_context = sanitize_text_field($_GET['log_filter_context'] ?? '');
-        $log_filter_email = sanitize_text_field($_GET['log_filter_email'] ?? '');
-        $gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
         ?>
         <table class="form-table">
             <tr valign="top">
                 <th scope="row">Logging Level</th>
                 <td>
                     <select name="throwaway_lookup_log_level">
-                        <option value="none" <?php selected(get_option('throwaway_lookup_log_level'), 'none'); ?>>None</option>
-                        <option value="domain" <?php selected(get_option('throwaway_lookup_log_level'), 'domain'); ?>>Domain Only</option>
-                        <option value="full" <?php selected(get_option('throwaway_lookup_log_level'), 'full'); ?>>Full Email Address</option>
+                        <?php
+                        $log_levels = [
+                            'none' => 'None',
+                            'domain' => 'Domain Only',
+                            'full' => 'Full Email Address'
+                        ];
+                        foreach ($log_levels as $value => $label) {
+                            printf(
+                                '<option value="%s" %s>%s</option>',
+                                esc_attr($value),
+                                selected(get_option('throwaway_lookup_log_level'), $value, false),
+                                esc_html($label)
+                            );
+                        }
+                        ?>
                     </select>
                     <p class="description">Choose what gets stored in the log. Domain only is a common GDPR-friendly option.</p>
                 </td>
@@ -69,25 +81,24 @@ $table = $wpdb->prefix . 'throwaway_logs';
         </thead>
         <tbody>
             <?php
-            $where = [];
+            $sql_parts = ["SELECT * FROM {$table}"];
             $params = [];
 
             if (!empty($log_filter_context)) {
-                $where[] = "context = %s";
+                $sql_parts[] = "context = %s";
                 $params[] = $log_filter_context;
             }
 
             if (!empty($log_filter_email)) {
-                $where[] = "email LIKE %s";
+                $sql_parts[] = "email LIKE %s";
                 $params[] = '%' . $wpdb->esc_like($log_filter_email) . '%';
             }
 
-            $sql = "SELECT * FROM {$table}";
-            if ($where) {
-                $sql .= " WHERE " . implode(" AND ", $where);
-                $sql = $wpdb->prepare($sql, ...$params);
+            if ($params) {
+                $sql = $wpdb->prepare(implode(' WHERE ', $sql_parts) . " ORDER BY timestamp DESC LIMIT 50", ...$params);
+            } else {
+                $sql = implode(' ', $sql_parts) . " ORDER BY timestamp DESC LIMIT 50";
             }
-            $sql .= " ORDER BY timestamp DESC LIMIT 50";
 
             $logs = $wpdb->get_results($sql);
             if ($logs) {
@@ -104,34 +115,29 @@ $table = $wpdb->prefix . 'throwaway_logs';
                 echo '<tr><td colspan="5">No logs found.</td></tr>';
             }
 
-            if (!empty($gdpr_subject)) {
-                if (isset($_POST['gdpr_tools_nonce_field']) && check_admin_referer('gdpr_tools_nonce', 'gdpr_tools_nonce_field')) {
-                    $like = '%' . $wpdb->esc_like($gdpr_subject) . '%';
-
-                    if (isset($_POST['delete_subject_logs'])) {
-                        $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", $like));
-                        echo '<div class="updated"><p>Logs deleted for: ' . esc_html($gdpr_subject) . '</p></div>';
-                    }
-
-                    if (isset($_POST['export_subject_logs'])) {
-                        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", $like), ARRAY_A);
-                        if (!empty($logs)) {
-                            header('Content-Type: text/csv');
-                            header('Content-Disposition: attachment; filename="subject-logs.csv"');
-                            $out = fopen('php://output', 'w');
-                            fputcsv($out, array_keys($logs[0]));
-                            foreach ($logs as $log) {
-                                fputcsv($out, $log);
-                            }
-                            fclose($out);
-                            exit;
-                        } else {
-                            echo '<div class="notice notice-warning"><p>No logs found for: ' . esc_html($gdpr_subject) . '</p></div>';
+            if (!empty($gdpr_subject) && check_admin_referer('gdpr_tools_nonce', 'gdpr_tools_nonce_field')) {
+                $like = '%' . $wpdb->esc_like($gdpr_subject) . '%';
+                if (isset($_POST['delete_subject_logs'])) {
+                    $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", $like));
+                    echo '<div class="updated"><p>Logs deleted for: ' . esc_html($gdpr_subject) . '</p></div>';
+                } elseif (isset($_POST['export_subject_logs'])) {
+                    $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", $like), ARRAY_A);
+                    if ($logs) {
+                        header('Content-Type: text/csv');
+                        header('Content-Disposition: attachment; filename="subject-logs.csv"');
+                        $out = fopen('php://output', 'w');
+                        fputcsv($out, array_keys($logs[0]));
+                        foreach ($logs as $log) {
+                            fputcsv($out, $log);
                         }
+                        fclose($out);
+                        exit;
+                    } else {
+                        echo '<div class="notice notice-warning"><p>No logs found for: ' . esc_html($gdpr_subject) . '</p></div>';
                     }
-                } else {
-                    echo '<div class="notice notice-error"><p>Nonce verification failed.</p></div>';
                 }
+            } elseif (!empty($gdpr_subject)) {
+                echo '<div class="notice notice-error"><p>Nonce verification failed.</p></div>';
             }
             ?>
         </tbody>
