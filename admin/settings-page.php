@@ -60,16 +60,18 @@ $gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
 
     <hr>
     <h2>Log Viewer</h2>
-    <form method="get">
+    <form method="get" style="margin-bottom: 20px;">
         <input type="hidden" name="page" value="throwaway-lookup" />
         <label for="log_filter_context">Context:</label>
         <input type="text" name="log_filter_context" value="<?php echo esc_attr($log_filter_context); ?>" />
+        
         <label for="log_filter_email">Email/Domain:</label>
         <input type="text" name="log_filter_email" value="<?php echo esc_attr($log_filter_email); ?>" />
-        <input type="submit" class="button" value="Filter Logs" />
+        
+        <input type="submit" class="button button-primary" value="Filter Logs" />
     </form>
 
-    <table class="widefat striped">
+    <table class="widefat striped" style="width: 100%;">
         <thead>
             <tr>
                 <th>Timestamp</th>
@@ -107,7 +109,7 @@ $gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
                     echo '<td>' . esc_html($row->timestamp) . '</td>';
                     echo '<td>' . esc_html($row->context) . '</td>';
                     echo '<td>' . esc_html($row->email) . '</td>';
-                    echo '<td>' . ($row->result ? 'Disposable' : 'Valid') . '</td>';
+                    echo '<td>' . ($row->result ? '<span style="color: red;">Disposable</span>' : '<span style="color: green;">Valid</span>') . '</td>';
                     echo '<td>' . esc_html($row->source) . '</td>';
                     echo '</tr>';
                 }
