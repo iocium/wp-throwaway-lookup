@@ -22,6 +22,10 @@ class ThrowawayEmailLookup {
         add_filter('throwaway_lookup_check', [self::class, 'handle_external_check'], 10, 3);
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_init', [$this, 'register_settings']);
+        
+        // Register data exporters and erasers for GDPR compliance
+        add_filter('wp_privacy_personal_data_exporters', [$this, 'register_data_exporter']);
+        add_filter('wp_privacy_personal_data_erasers', [$this, 'register_data_eraser']);
     }
 
     public static function handle_external_check($default, $email, $_unused = null) {
@@ -75,11 +79,8 @@ class ThrowawayEmailLookup {
     }
 
     public function is_allowed($email) {
-        // Retrieve and prepare allowed rules only once
         $allowedRules = array_filter(array_map('strtolower', array_map('trim', explode("\n", get_option(self::OPTION_ALLOWED, '')))));
-        // Normalize email for comparison
         $email = strtolower($email);
-        // Check if any rule matches the email or domain
         foreach ($allowedRules as $rule) {
             $normalizedRule = ltrim($rule, '@');
             if (str_ends_with($email, '@' . $normalizedRule) || $email === $rule) {
@@ -87,28 +88,22 @@ class ThrowawayEmailLookup {
             }
         }        
         return false;
-    }    
+    }
 
     public function query_api($subject) {
-        // Check if the subject is an email address
         if (filter_var($subject, FILTER_VALIDATE_EMAIL)) {
-            // Extract the domain from the email address
             $domain = substr(strrchr($subject, "@"), 1);
         } else {
-            // If not an email address, use the subject as is
             $domain = $subject;
         }
     
-        // Define a unique cache key based on the domain
         $cache_key = 'api_query_' . md5($domain);
     
-        // Attempt to retrieve from cache first
         $cached_response = get_transient($cache_key);
         if ($cached_response !== false) {
             return $cached_response;
         }
     
-        // If not cached, make the API request
         $resp = wp_remote_get(self::API_ENDPOINT . urlencode($domain), [
             'headers' => ['Accept' => 'application/json'],
             'timeout' => 5,
@@ -121,11 +116,10 @@ class ThrowawayEmailLookup {
         $body = json_decode(wp_remote_retrieve_body($resp), true);
         $disposable_status = $body['disposable'] ?? false;
     
-        // Cache the result for an hour (3600 seconds)
         set_transient($cache_key, $disposable_status, 3600);
     
         return $disposable_status;
-    }     
+    }
 
     public function log_attempt($context, $email, $result) {
         global $wpdb;
@@ -151,7 +145,87 @@ class ThrowawayEmailLookup {
         if (!current_user_can('manage_options')) return;
         error_log('[ThrowawayEmailLookup Audit] ' . $message);
     }
+    
+    /**
+     * Registers the export functionality.
+     */
+    public function register_data_exporter($exporters) {
+        $exporters['throwaway_logs'] = [
+            'exporter_friendly_name' => 'Throwaway Email Logs',
+            'callback' => [$this, 'data_exporter'],
+        ];
+        return $exporters;
+    }
 
+    /**
+     * Callback function to export personal data.
+     */
+    public function data_exporter($email_address, $page = 1) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'throwaway_logs';
+        $items = [];
+        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($email_address) . '%'), ARRAY_A);
+
+        foreach ($logs as $log) {
+            $items[] = [
+                'group_id' => 'throwaway_logs',
+                'group_label' => 'Throwaway Email Logs',
+                'item_id' => "throwaway-log-{$log['id']}",
+                'data' => [
+                    [
+                        'name' => 'Context',
+                        'value' => $log['context'],
+                    ],
+                    [
+                        'name' => 'Result',
+                        'value' => $log['result'] ? 'Disposable' : 'Not Disposable',
+                    ],
+                    [
+                        'name' => 'Source',
+                        'value' => $log['source'],
+                    ],
+                    [
+                        'name' => 'Timestamp',
+                        'value' => $log['timestamp'],
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'data' => $items,
+            'done' => true,
+        ];
+    }
+
+    /**
+     * Registers the eraser functionality.
+     */
+    public function register_data_eraser($erasers) {
+        $erasers['throwaway_logs'] = [
+            'eraser_friendly_name' => 'Throwaway Email Logs',
+            'callback' => [$this, 'data_eraser'],
+        ];
+        return $erasers;
+    }
+
+    /**
+     * Callback function to erase personal data.
+     */
+    public function data_eraser($email_address, $page = 1) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'throwaway_logs';
+        $count = $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($email_address) . '%'));
+        $this->log_audit_event("Deleted $count logs for email: $email_address");
+
+        return [
+            'items_removed' => $count > 0,
+            'items_retained' => false,
+            'messages' => [],
+            'done' => true,
+        ];
+    }
+    
     public function handle_external_deletion($subject) {
         global $wpdb;
         $table = $wpdb->prefix . 'throwaway_logs';
