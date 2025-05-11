@@ -15,7 +15,7 @@ jobs:
 
     - name: Package for WordPress
       run: |
-        zip -r plugin-package.zip . \
+        zip -r throwaway-lookup.zip . \
           -x "tests/*" \
           -x "bin/*" \
           -x ".git/*" \
