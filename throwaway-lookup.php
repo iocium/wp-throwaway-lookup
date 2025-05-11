@@ -75,16 +75,19 @@ class ThrowawayEmailLookup {
     }
 
     public function is_allowed($email) {
-        $allowed = array_map('trim', explode("\n", get_option(self::OPTION_ALLOWED, '')));
+        // Retrieve and prepare allowed rules only once
+        $allowedRules = array_filter(array_map('strtolower', array_map('trim', explode("\n", get_option(self::OPTION_ALLOWED, '')))));
+        // Normalize email for comparison
         $email = strtolower($email);
-        foreach ($allowed as $rule) {
-            $rule = strtolower($rule);
-            if (str_ends_with($email, '@' . ltrim($rule, '@')) || $email === $rule) {
+        // Check if any rule matches the email or domain
+        foreach ($allowedRules as $rule) {
+            $normalizedRule = ltrim($rule, '@');
+            if (str_ends_with($email, '@' . $normalizedRule) || $email === $rule) {
                 return true;
             }
-        }
+        }        
         return false;
-    }
+    }    
 
     public function query_api($subject) {
         // Check if the subject is an email address
