@@ -14,6 +14,8 @@ class ThrowawayEmailLookup {
     const OPTION_ALLOWED = 'throwaway_lookup_allowed_list';
     const OPTION_LOG_LEVEL = 'throwaway_lookup_log_level';
 
+    private $allowed_cached = null;
+
     public function __construct() {
         add_action('preprocess_comment', [$this, 'filter_comment'], 1);
         add_filter('registration_errors', [$this, 'filter_registration'], 10, 3);
@@ -79,9 +81,14 @@ class ThrowawayEmailLookup {
     }
 
     public function is_allowed($email) {
-        $allowedRules = array_filter(array_map('strtolower', array_map('trim', explode("\n", get_option(self::OPTION_ALLOWED, '')))));
+        if ($this->allowed_cached === null) {
+            $this->allowed_cached = array_filter(
+                array_map('strtolower', array_map('trim', explode("\n", get_option(self::OPTION_ALLOWED, ''))))
+            );
+        }
+        
         $email = strtolower($email);
-        foreach ($allowedRules as $rule) {
+        foreach ($this->allowed_cached as $rule) {
             $normalizedRule = ltrim($rule, '@');
             if (str_ends_with($email, '@' . $normalizedRule) || $email === $rule) {
                 return true;
@@ -236,9 +243,22 @@ class ThrowawayEmailLookup {
     public function handle_external_export($subject) {
         if (!current_user_can('manage_options')) return [];
         global $wpdb;
+        
+        $cache_key = 'export_logs_' . md5($subject);
+        $cached_logs = get_transient($cache_key);
+        
+        if ($cached_logs !== false) {
+            $this->log_audit_event("Fetched cached logs for subject: $subject");
+            return $cached_logs;
+        }
+        
         $table = $wpdb->prefix . 'throwaway_logs';
+        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($subject) . '%'), ARRAY_A);
+        
+        set_transient($cache_key, $logs, 3600);
         $this->log_audit_event("Exported logs for subject: $subject");
-        return $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($subject) . '%'), ARRAY_A);
+        
+        return $logs;
     }
 
     public function add_admin_menu() {
