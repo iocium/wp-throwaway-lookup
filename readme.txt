@@ -8,7 +8,7 @@ Stable tag: 1.0.0
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
-Protect your WordPress site by detecting and blocking disposable email addresses using throwaway.cloud. Ensure GDPR/CCPA compliance with full logging, filtering, export and deletion tools.
+Protect your WordPress site from disposable emails with throwaway.cloud. GDPR/CCPA compliant logging, filtering, export, and deletion tools included.
 
 == Description ==
 
