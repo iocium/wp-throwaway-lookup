@@ -1,0 +1,30 @@
+name: Package WordPress Plugin
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Package for WordPress
+      run: |
+        zip -r plugin-package.zip . \
+          -x "tests/*" \
+          -x "bin/*" \
+          -x ".git/*" \
+          -x ".github/*" \
+          -x "./phpunit.xml.dist" \
+          -x "*.zip"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: wordpress-plugin-package
+        path: throwaway-lookup.zip
