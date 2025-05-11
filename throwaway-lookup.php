@@ -87,14 +87,42 @@ class ThrowawayEmailLookup {
     }
 
     public function query_api($subject) {
-        $resp = wp_remote_get(self::API_ENDPOINT . urlencode($subject), [
+        // Check if the subject is an email address
+        if (filter_var($subject, FILTER_VALIDATE_EMAIL)) {
+            // Extract the domain from the email address
+            $domain = substr(strrchr($subject, "@"), 1);
+        } else {
+            // If not an email address, use the subject as is
+            $domain = $subject;
+        }
+    
+        // Define a unique cache key based on the domain
+        $cache_key = 'api_query_' . md5($domain);
+    
+        // Attempt to retrieve from cache first
+        $cached_response = get_transient($cache_key);
+        if ($cached_response !== false) {
+            return $cached_response;
+        }
+    
+        // If not cached, make the API request
+        $resp = wp_remote_get(self::API_ENDPOINT . urlencode($domain), [
             'headers' => ['Accept' => 'application/json'],
             'timeout' => 5,
         ]);
-        if (is_wp_error($resp)) return false;
+    
+        if (is_wp_error($resp)) {
+            return false;
+        }
+    
         $body = json_decode(wp_remote_retrieve_body($resp), true);
-        return $body['disposable'] ?? false;
-    }
+        $disposable_status = $body['disposable'] ?? false;
+    
+        // Cache the result for an hour (3600 seconds)
+        set_transient($cache_key, $disposable_status, 3600);
+    
+        return $disposable_status;
+    }     
 
     public function log_attempt($context, $email, $result) {
         global $wpdb;
