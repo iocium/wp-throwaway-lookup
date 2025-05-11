@@ -122,22 +122,22 @@ $gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
                 if (check_admin_referer('gdpr_tools_nonce', 'gdpr_tools_nonce_field')) {
                     $like = '%' . $wpdb->esc_like($gdpr_subject) . '%';
                     
-                    if (isset($_POST['delete_subject_logs'])) {
-                        $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", $like));
-                        echo '<div class="updated"><p>Logs deleted for: ' . esc_html($gdpr_subject) . '</p></div>';
-                    } elseif (isset($_POST['export_subject_logs'])) {
-                        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", $like), ARRAY_A);
-                        if ($logs) {
+                    $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", $like), ARRAY_A);
+                    if ($logs) {
+                        if (isset($_POST['delete_subject_logs'])) {
+                            $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", $like));
+                            echo '<div class="updated"><p>Logs deleted for: ' . esc_html($gdpr_subject) . '</p></div>';
+                        } elseif (isset($_POST['export_subject_logs'])) {
                             // Set headers for CSV download
                             nocache_headers(); // Ensures no caching
                             header('Content-Type: text/csv; charset=utf-8');
                             header('Content-Disposition: attachment; filename="subject-logs.csv"');
-
+    
                             $output = fopen('php://output', 'w'); // WP_Filesystem doesn't support writing to php://output
-
+    
                             // Write the CSV header
                             fputcsv($output, array_keys($logs[0]));
-
+    
                             // Write our data rows
                             foreach ($logs as $log) {
                                 fputcsv($output, $log);
@@ -146,9 +146,10 @@ $gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
                             // Close the output resource
                             fclose($output);
                             exit;
-                        } else {
-                            echo '<div class="notice notice-warning"><p>No logs found for: ' . esc_html($gdpr_subject) . '</p></div>';
                         }
+                    }
+                    else {
+                        echo '<div class="notice notice-warning"><p>No logs found for: ' . esc_html($gdpr_subject) . '</p></div>';
                     }
                 } else {
                     echo '<div class="notice notice-error"><p>Nonce verification failed.</p></div>';
