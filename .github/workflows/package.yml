@@ -19,6 +19,7 @@ jobs:
           -x "tests/*" \
           -x "bin/*" \
           -x ".git/*" \
+          -x ".gitignore" \
           -x ".github/*" \
           -x "./phpunit.xml.dist" \
           -x "*.zip"
