@@ -117,26 +117,21 @@ $error_code = isset($_GET['throwaway_error']) ? sanitize_text_field(wp_unslash($
         </thead>
         <tbody>
             <?php
-            $sql_parts = ["SELECT * FROM %i"];
+            $sql = "SELECT * FROM %i";
             $params = [$table];
 
             if (!empty($log_filter_context)) {
-                $sql_parts[] = "context = %s";
+                $sql .= " WHERE context = %s";
                 $params[] = $log_filter_context;
             }
 
             if (!empty($log_filter_email)) {
-                $sql_parts[] = "email LIKE %s";
+                $sql .= (!empty($log_filter_context) ? " AND " : " WHERE ") . "email LIKE %s";
                 $params[] = '%' . $wpdb->esc_like($log_filter_email) . '%';
             }
 
-            if (count($params) > 1) {
-                $sql = $wpdb->prepare(implode(' WHERE ', $sql_parts) . " ORDER BY timestamp DESC LIMIT 50", ...$params);
-            } else {
-                $sql = $wpdb->prepare($sql_parts[0] . " ORDER BY timestamp DESC LIMIT 50", $table);
-            }
-
-            $logs = $wpdb->get_results($sql);
+            $sql .= " ORDER BY timestamp DESC LIMIT 50";
+            $logs = $wpdb->get_results($wpdb->prepare($sql, ...$params));
             if ($logs) {
                 foreach ($logs as $row) {
                     echo '<tr>';

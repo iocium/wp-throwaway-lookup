@@ -14,7 +14,7 @@ delete_option('throwaway_lookup_log_level');
 // Drop the logs table.
 global $wpdb;
 $table = $wpdb->prefix . 'throwaway_logs';
-$wpdb->query("DROP TABLE IF EXISTS {$table}");
+$wpdb->query($wpdb->prepare("DROP TABLE IF EXISTS %i", $table));
 
 // Remove plugin transients.
 $wpdb->query(
