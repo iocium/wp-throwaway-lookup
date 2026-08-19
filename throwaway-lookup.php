@@ -5,7 +5,7 @@
  * Version: 1.0.0
  * Author: Iocium
  * License: MIT
- * Text Domain: throwaway-cloud-e-mail-check
+ * Text Domain: throwawaycloud-email-lookup
  * Domain Path: /languages
  */
 
