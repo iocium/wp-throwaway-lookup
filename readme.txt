@@ -1,7 +1,7 @@
 === throwaway.cloud E-Mail Check ===
 Contributors: iocium
 Tags: spam, email validation, disposable email, throwaway email, signup spam
-Requires at least: 5.0
+Requires at least: 6.1
 Tested up to: 7.0
 Requires PHP: 7.2
 Stable tag: 1.0.0
