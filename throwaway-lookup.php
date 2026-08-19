@@ -314,7 +314,7 @@ class ThrowawayEmailLookup {
         foreach ($logs as $log) {
             $output .= $this->format_csv_row($log);
         }
-        echo $output;
+        echo wp_kses_post($output);
         exit;
     }
 
