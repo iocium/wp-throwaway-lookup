@@ -93,16 +93,16 @@ install_test_suite() {
 
   if [[ "$(uname)" == "Darwin" ]]; then
     sed -i '' "s:dirname( __FILE__ ) . '/src/':'$WP_CORE_DIR/':" "$WP_TESTS_DIR/wp-tests-config.php"
-    sed -i '' "s/yourdbnamehere/$DB_NAME/" "$WP_TESTS_DIR/wp-tests-config.php"
-    sed -i '' "s/yourusernamehere/$DB_USER/" "$WP_TESTS_DIR/wp-tests-config.php"
-    sed -i '' "s/yourpasswordhere/$DB_PASS/" "$WP_TESTS_DIR/wp-tests-config.php"
-    sed -i '' "s|localhost|$DB_HOST|" "$WP_TESTS_DIR/wp-tests-config.php"
+    sed -i '' "s/'your[a-z]*dbnamehere'/'$DB_NAME'/g" "$WP_TESTS_DIR/wp-tests-config.php"
+    sed -i '' "s/'your[a-z]*usernamehere'/'$DB_USER'/g" "$WP_TESTS_DIR/wp-tests-config.php"
+    sed -i '' "s/'your[a-z]*passwordhere'/'$DB_PASS'/g" "$WP_TESTS_DIR/wp-tests-config.php"
+    sed -i '' "s|'localhost'|'$DB_HOST'|g" "$WP_TESTS_DIR/wp-tests-config.php"
   else
     sed -i "s:dirname( __FILE__ ) . '/src/':'$WP_CORE_DIR/':" "$WP_TESTS_DIR/wp-tests-config.php"
-    sed -i "s/yourdbnamehere/$DB_NAME/" "$WP_TESTS_DIR/wp-tests-config.php"
-    sed -i "s/yourusernamehere/$DB_USER/" "$WP_TESTS_DIR/wp-tests-config.php"
-    sed -i "s/yourpasswordhere/$DB_PASS/" "$WP_TESTS_DIR/wp-tests-config.php"
-    sed -i "s|localhost|$DB_HOST|" "$WP_TESTS_DIR/wp-tests-config.php"
+    sed -i "s/'your[a-z]*dbnamehere'/'$DB_NAME'/g" "$WP_TESTS_DIR/wp-tests-config.php"
+    sed -i "s/'your[a-z]*usernamehere'/'$DB_USER'/g" "$WP_TESTS_DIR/wp-tests-config.php"
+    sed -i "s/'your[a-z]*passwordhere'/'$DB_PASS'/g" "$WP_TESTS_DIR/wp-tests-config.php"
+    sed -i "s|'localhost'|'$DB_HOST'|g" "$WP_TESTS_DIR/wp-tests-config.php"
   fi
 }
 
