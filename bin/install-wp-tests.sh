@@ -82,7 +82,14 @@ install_test_suite() {
   svn co --quiet "https://develop.svn.wordpress.org/tags/${wp_version}/tests/phpunit/includes/" "$WP_TESTS_DIR/includes"
   svn co --quiet "https://develop.svn.wordpress.org/tags/${wp_version}/tests/phpunit/data/" "$WP_TESTS_DIR/data"
 
-  cp "$WP_TESTS_DIR/includes/wp-tests-config-sample.php" "$WP_TESTS_DIR/wp-tests-config.php"
+  local sample_config="$WP_TESTS_DIR/includes/wp-tests-config-sample.php"
+  if [ ! -f "$sample_config" ]; then
+    # Newer releases keep the sample config at the test-suite repository root.
+    svn export --quiet "https://develop.svn.wordpress.org/tags/${wp_version}/wp-tests-config-sample.php" "$WP_TESTS_DIR/wp-tests-config-sample.php"
+    sample_config="$WP_TESTS_DIR/wp-tests-config-sample.php"
+  fi
+
+  cp "$sample_config" "$WP_TESTS_DIR/wp-tests-config.php"
 
   if [[ "$(uname)" == "Darwin" ]]; then
     sed -i '' "s:dirname( __FILE__ ) . '/src/':'$WP_CORE_DIR/':" "$WP_TESTS_DIR/wp-tests-config.php"
