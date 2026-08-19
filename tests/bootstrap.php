@@ -28,5 +28,28 @@ function _manually_load_plugin() {
 }
 tests_add_filter('muplugins_loaded', '_manually_load_plugin');
 
+// Ensure the plugin's log table exists once WordPress is loaded.
+function _throwaway_lookup_create_test_table() {
+    global $wpdb;
+    $table = $wpdb->prefix . 'throwaway_logs';
+    $charset = $wpdb->get_charset_collate();
+    $sql = "CREATE TABLE IF NOT EXISTS $table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        context VARCHAR(255),
+        email VARCHAR(255),
+        result TINYINT(1),
+        source VARCHAR(255),
+        INDEX (timestamp),
+        INDEX (context),
+        INDEX (email),
+        INDEX (result),
+        INDEX (source)
+    ) $charset;";
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta($sql);
+}
+tests_add_filter('muplugins_loaded', '_throwaway_lookup_create_test_table', 20);
+
 // Start up the WP testing environment.
 require $_tests_dir . '/includes/bootstrap.php';
