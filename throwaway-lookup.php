@@ -5,6 +5,8 @@
  * Version: 1.0.0
  * Author: Iocium
  * License: MIT
+ * Text Domain: throwaway-lookup
+ * Domain Path: /languages
  */
 
 defined('ABSPATH') || exit;
@@ -24,15 +26,16 @@ class ThrowawayEmailLookup {
         add_filter('throwaway_lookup_check', [self::class, 'handle_external_check'], 10, 3);
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_init', [$this, 'register_settings']);
-        
+        add_action('admin_post_throwaway_lookup_export_csv', [$this, 'admin_export_csv']);
+        add_action('admin_post_throwaway_lookup_delete_logs', [$this, 'admin_delete_logs']);
+
         // Register data exporters and erasers for GDPR compliance
         add_filter('wp_privacy_personal_data_exporters', [$this, 'register_data_exporter']);
         add_filter('wp_privacy_personal_data_erasers', [$this, 'register_data_eraser']);
     }
 
     public static function handle_external_check($default, $email, $_unused = null) {
-        $instance = new self();
-        $is_disposable = $instance->is_throwaway($email, 'external');
+        $instance = throwaway_email_lookup();
 
         $source_plugin = 'unknown';
         foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) as $frame) {
@@ -44,17 +47,7 @@ class ThrowawayEmailLookup {
             }
         }
 
-        global $wpdb;
-        $table = $wpdb->prefix . 'throwaway_logs';
-        $display = $instance->obfuscate_subject($email);
-        $wpdb->insert($table, [
-            'context' => 'external',
-            'email' => $display,
-            'result' => $is_disposable ? 1 : 0,
-            'source' => $source_plugin,
-        ]);
-
-        return $is_disposable;
+        return $instance->is_throwaway($email, 'external', $source_plugin);
     }
 
     public function filter_comment($commentdata) {
@@ -72,11 +65,11 @@ class ThrowawayEmailLookup {
         return $errors;
     }
 
-    public function is_throwaway($email, $context) {
+    public function is_throwaway($email, $context, $source = null) {
         if ($this->is_allowed($email)) return false;
         $is_disposable = $this->query_api($email);
         $is_disposable = apply_filters('throwaway_lookup_result', $is_disposable, $email, $context);
-        $this->log_attempt($context, $email, $is_disposable);
+        $this->log_attempt($context, $email, $is_disposable, $source);
         return $is_disposable;
     }
 
@@ -86,15 +79,26 @@ class ThrowawayEmailLookup {
                 array_map('strtolower', array_map('trim', explode("\n", get_option(self::OPTION_ALLOWED, ''))))
             );
         }
-        
+
         $email = strtolower($email);
         foreach ($this->allowed_cached as $rule) {
-            $normalizedRule = ltrim($rule, '@');
-            if (str_ends_with($email, '@' . $normalizedRule) || $email === $rule) {
+            $normalized_rule = ltrim($rule, '@');
+            if ($this->str_ends_with($email, '@' . $normalized_rule) || $email === $rule) {
                 return true;
             }
-        }        
+        }
         return false;
+    }
+
+    /**
+     * PHP 7.2-compatible replacement for str_ends_with().
+     */
+    private function str_ends_with($haystack, $needle) {
+        if ($needle === '') {
+            return true;
+        }
+        $length = strlen($needle);
+        return $length <= strlen($haystack) && substr($haystack, -$length) === $needle;
     }
 
     public function query_api($subject) {
@@ -103,36 +107,43 @@ class ThrowawayEmailLookup {
         } else {
             $domain = $subject;
         }
-    
-        $cache_key = 'api_query_' . md5($domain);
-    
-        $cached_response = get_transient($cache_key);
-        if ($cached_response !== false) {
-            return $cached_response;
+
+        $cache_key = 'throwaway_api_query_' . md5($domain);
+
+        $cached = get_transient($cache_key);
+        if ($cached !== false && is_array($cached) && array_key_exists('value', $cached)) {
+            return $cached['value'];
         }
-    
+
         $resp = wp_remote_get(self::API_ENDPOINT . urlencode($domain), [
             'headers' => ['Accept' => 'application/json'],
             'timeout' => 5,
         ]);
-    
+
         if (is_wp_error($resp)) {
             return false;
         }
-    
+
         $body = json_decode(wp_remote_retrieve_body($resp), true);
         $disposable_status = $body['disposable'] ?? false;
-    
-        set_transient($cache_key, $disposable_status, 3600);
-    
+
+        set_transient($cache_key, ['value' => $disposable_status], 3600);
+
         return $disposable_status;
     }
 
-    public function log_attempt($context, $email, $result) {
+    public function log_attempt($context, $email, $result, $source = null) {
+        if (get_option(self::OPTION_LOG_LEVEL, 'domain') === 'none') {
+            return;
+        }
+
+        if ($source === null) {
+            $source = defined('THROWAWAY_LOOKUP_SOURCE') ? THROWAWAY_LOOKUP_SOURCE : 'core';
+        }
+
         global $wpdb;
         $table = $wpdb->prefix . 'throwaway_logs';
         $display = $this->obfuscate_subject($email);
-        $source = defined('THROWAWAY_LOOKUP_SOURCE') ? THROWAWAY_LOOKUP_SOURCE : 'core';
         $wpdb->insert($table, [
             'context' => $context,
             'email' => $display,
@@ -152,7 +163,7 @@ class ThrowawayEmailLookup {
         if (!current_user_can('manage_options')) return;
         error_log('[ThrowawayEmailLookup Audit] ' . $message);
     }
-    
+
     /**
      * Registers the export functionality.
      */
@@ -232,8 +243,12 @@ class ThrowawayEmailLookup {
             'done' => true,
         ];
     }
-    
+
     public function handle_external_deletion($subject) {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
         global $wpdb;
         $table = $wpdb->prefix . 'throwaway_logs';
         $count = $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($subject) . '%'));
@@ -241,24 +256,91 @@ class ThrowawayEmailLookup {
     }
 
     public function handle_external_export($subject) {
-        if (!current_user_can('manage_options')) return [];
+        if (!current_user_can('manage_options')) {
+            return [];
+        }
+
         global $wpdb;
-        
-        $cache_key = 'export_logs_' . md5($subject);
+
+        $cache_key = 'throwaway_export_logs_' . md5($subject);
+
         $cached_logs = get_transient($cache_key);
-        
         if ($cached_logs !== false) {
             $this->log_audit_event("Fetched cached logs for subject: $subject");
             return $cached_logs;
         }
-        
+
         $table = $wpdb->prefix . 'throwaway_logs';
         $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($subject) . '%'), ARRAY_A);
-        
+
         set_transient($cache_key, $logs, 3600);
         $this->log_audit_event("Exported logs for subject: $subject");
-        
+
         return $logs;
+    }
+
+    /**
+     * Handle CSV export request from the admin tools page.
+     */
+    public function admin_export_csv() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized', '', ['response' => 403]);
+        }
+        check_admin_referer('throwaway_lookup_gdpr_action', 'throwaway_lookup_nonce');
+
+        $subject = isset($_POST['gdpr_subject']) ? sanitize_text_field(wp_unslash($_POST['gdpr_subject'])) : '';
+        if (empty($subject)) {
+            wp_safe_redirect(admin_url('options-general.php?page=throwaway-lookup&throwaway_error=no-subject'));
+            exit;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'throwaway_logs';
+        $like = '%' . $wpdb->esc_like($subject) . '%';
+        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", $like), ARRAY_A);
+
+        if (empty($logs)) {
+            wp_safe_redirect(admin_url('options-general.php?page=throwaway-lookup&throwaway_error=no-logs'));
+            exit;
+        }
+
+        $this->log_audit_event("Exported logs for subject: $subject");
+
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="subject-logs.csv"');
+
+        $output = fopen('php://output', 'w');
+        fputcsv($output, array_keys($logs[0]));
+        foreach ($logs as $log) {
+            fputcsv($output, $log);
+        }
+        fclose($output);
+        exit;
+    }
+
+    /**
+     * Handle delete request from the admin tools page.
+     */
+    public function admin_delete_logs() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized', '', ['response' => 403]);
+        }
+        check_admin_referer('throwaway_lookup_gdpr_action', 'throwaway_lookup_nonce');
+
+        $subject = isset($_POST['gdpr_subject']) ? sanitize_text_field(wp_unslash($_POST['gdpr_subject'])) : '';
+        if (empty($subject)) {
+            wp_safe_redirect(admin_url('options-general.php?page=throwaway-lookup&throwaway_error=no-subject'));
+            exit;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'throwaway_logs';
+        $count = $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($subject) . '%'));
+        $this->log_audit_event("Deleted $count logs for subject: $subject");
+
+        wp_safe_redirect(admin_url('options-general.php?page=throwaway-lookup&throwaway_deleted=' . (int) $count));
+        exit;
     }
 
     public function add_admin_menu() {
@@ -302,4 +384,17 @@ register_activation_hook(__FILE__, function () {
     dbDelta($sql);
 });
 
-new ThrowawayEmailLookup();
+/**
+ * Main plugin instance.
+ *
+ * @return ThrowawayEmailLookup
+ */
+function throwaway_email_lookup() {
+    static $instance;
+    if (!$instance) {
+        $instance = new ThrowawayEmailLookup();
+    }
+    return $instance;
+}
+
+throwaway_email_lookup();

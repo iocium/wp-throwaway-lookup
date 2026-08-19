@@ -1,30 +1,53 @@
 <?php
-if ( ! defined( 'ABSPATH' ) ) exit;
+if (!defined('ABSPATH')) exit;
+
+if (!current_user_can('manage_options')) {
+    wp_die(esc_html__('You do not have permission to access this page.', 'throwaway-lookup'));
+}
+
 global $wpdb;
 $table = $wpdb->prefix . 'throwaway_logs';
 
-$log_filter_context = sanitize_text_field($_GET['log_filter_context'] ?? '');
-$log_filter_email = sanitize_text_field($_GET['log_filter_email'] ?? '');
-$gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
-?>
+$log_filter_context = isset($_GET['log_filter_context']) ? sanitize_text_field(wp_unslash($_GET['log_filter_context'])) : '';
+$log_filter_email = isset($_GET['log_filter_email']) ? sanitize_text_field(wp_unslash($_GET['log_filter_email'])) : '';
 
+$deleted_count = isset($_GET['throwaway_deleted']) ? (int) $_GET['throwaway_deleted'] : null;
+$error_code = isset($_GET['throwaway_error']) ? sanitize_text_field(wp_unslash($_GET['throwaway_error'])) : '';
+?>
 <div class="wrap">
-    <h1>throwaway.cloud E-Mail Check Settings</h1>
-    <form method="post" action="options.php">
+    <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+
+    <?php
+    if ($deleted_count !== null) {
+        echo '<div class="updated notice notice-success is-dismissible"><p>' . esc_html(sprintf(
+            /* translators: %d: number of deleted log rows */
+            _n('Deleted %d log row.', 'Deleted %d log rows.', $deleted_count, 'throwaway-lookup'),
+            $deleted_count
+        )) . '</p></div>';
+    }
+
+    if ($error_code === 'no-subject') {
+        echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__('Please enter an email or domain.', 'throwaway-lookup') . '</p></div>';
+    } elseif ($error_code === 'no-logs') {
+        echo '<div class="notice notice-warning is-dismissible"><p>' . esc_html__('No logs found for that subject.', 'throwaway-lookup') . '</p></div>';
+    }
+    ?>
+
+    <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>">
         <?php
         settings_fields('throwaway_lookup_settings');
         do_settings_sections('throwaway_lookup_settings');
         ?>
         <table class="form-table">
             <tr valign="top">
-                <th scope="row">Logging Level</th>
+                <th scope="row"><?php echo esc_html__('Logging Level', 'throwaway-lookup'); ?></th>
                 <td>
                     <select name="throwaway_lookup_log_level">
                         <?php
                         $log_levels = [
-                            'none' => 'None',
-                            'domain' => 'Domain Only',
-                            'full' => 'Full Email Address'
+                            'none' => __('None', 'throwaway-lookup'),
+                            'domain' => __('Domain Only', 'throwaway-lookup'),
+                            'full' => __('Full Email Address', 'throwaway-lookup'),
                         ];
                         foreach ($log_levels as $value => $label) {
                             printf(
@@ -36,14 +59,14 @@ $gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
                         }
                         ?>
                     </select>
-                    <p class="description">Choose what gets stored in the log. Domain only is a common GDPR-friendly option.</p>
+                    <p class="description"><?php echo esc_html__('Choose what gets stored in the log. Domain only is a common GDPR-friendly option.', 'throwaway-lookup'); ?></p>
                 </td>
             </tr>
             <tr valign="top">
-                <th scope="row">Allowed List</th>
+                <th scope="row"><?php echo esc_html__('Allowed List', 'throwaway-lookup'); ?></th>
                 <td>
                     <textarea name="throwaway_lookup_allowed_list" rows="5" cols="50"><?php echo esc_textarea(get_option('throwaway_lookup_allowed_list')); ?></textarea>
-                    <p class="description">Enter one domain or email per line to always allow.</p>
+                    <p class="description"><?php echo esc_html__('Enter one domain or email per line to always allow.', 'throwaway-lookup'); ?></p>
                 </td>
             </tr>
         </table>
@@ -51,35 +74,45 @@ $gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
     </form>
 
     <hr>
-    <h2>GDPR Tools</h2>
-    <form method="post">
-        <?php wp_nonce_field('gdpr_tools_nonce', 'gdpr_tools_nonce_field'); ?>
-        <input type="text" name="gdpr_subject" placeholder="Enter email or domain" required />
-        <input type="submit" name="export_subject_logs" class="button" value="Export Logs (CSV)" />
-        <input type="submit" name="delete_subject_logs" class="button button-danger" value="Delete Logs" />
+    <h2><?php echo esc_html__('GDPR Tools', 'throwaway-lookup'); ?></h2>
+
+    <h3><?php echo esc_html__('Export Logs (CSV)', 'throwaway-lookup'); ?></h3>
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+        <input type="hidden" name="action" value="throwaway_lookup_export_csv" />
+        <?php wp_nonce_field('throwaway_lookup_gdpr_action', 'throwaway_lookup_nonce'); ?>
+        <input type="text" name="gdpr_subject" placeholder="<?php echo esc_attr__('Enter email or domain', 'throwaway-lookup'); ?>" required />
+        <?php submit_button(__('Export Logs (CSV)', 'throwaway-lookup'), 'secondary', 'export_subject_logs'); ?>
+    </form>
+
+    <h3><?php echo esc_html__('Delete Logs', 'throwaway-lookup'); ?></h3>
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+        <input type="hidden" name="action" value="throwaway_lookup_delete_logs" />
+        <?php wp_nonce_field('throwaway_lookup_gdpr_action', 'throwaway_lookup_nonce'); ?>
+        <input type="text" name="gdpr_subject" placeholder="<?php echo esc_attr__('Enter email or domain', 'throwaway-lookup'); ?>" required />
+        <input type="submit" name="delete_subject_logs" class="button button-danger" value="<?php echo esc_attr__('Delete Logs', 'throwaway-lookup'); ?>" />
     </form>
 
     <hr>
-    <h2>Log Viewer</h2>
+    <h2><?php echo esc_html__('Log Viewer', 'throwaway-lookup'); ?></h2>
     <form method="get" style="margin-bottom: 20px;">
         <input type="hidden" name="page" value="throwaway-lookup" />
-        <label for="log_filter_context">Context:</label>
-        <input type="text" name="log_filter_context" value="<?php echo esc_attr($log_filter_context); ?>" />
-        
-        <label for="log_filter_email">Email/Domain:</label>
-        <input type="text" name="log_filter_email" value="<?php echo esc_attr($log_filter_email); ?>" />
-        
-        <input type="submit" class="button button-primary" value="Filter Logs" />
+        <label for="log_filter_context"><?php echo esc_html__('Context:', 'throwaway-lookup'); ?></label>
+        <input type="text" name="log_filter_context" id="log_filter_context" value="<?php echo esc_attr($log_filter_context); ?>" />
+
+        <label for="log_filter_email"><?php echo esc_html__('Email/Domain:', 'throwaway-lookup'); ?></label>
+        <input type="text" name="log_filter_email" id="log_filter_email" value="<?php echo esc_attr($log_filter_email); ?>" />
+
+        <?php submit_button(__('Filter Logs', 'throwaway-lookup'), 'primary', 'filter_logs', false); ?>
     </form>
 
     <table class="widefat striped" style="width: 100%;">
         <thead>
             <tr>
-                <th>Timestamp</th>
-                <th>Context</th>
-                <th>Email/Domain</th>
-                <th>Result</th>
-                <th>Source</th>
+                <th><?php echo esc_html__('Timestamp', 'throwaway-lookup'); ?></th>
+                <th><?php echo esc_html__('Context', 'throwaway-lookup'); ?></th>
+                <th><?php echo esc_html__('Email/Domain', 'throwaway-lookup'); ?></th>
+                <th><?php echo esc_html__('Result', 'throwaway-lookup'); ?></th>
+                <th><?php echo esc_html__('Source', 'throwaway-lookup'); ?></th>
             </tr>
         </thead>
         <tbody>
@@ -110,51 +143,12 @@ $gdpr_subject = sanitize_text_field($_POST['gdpr_subject'] ?? '');
                     echo '<td>' . esc_html($row->timestamp) . '</td>';
                     echo '<td>' . esc_html($row->context) . '</td>';
                     echo '<td>' . esc_html($row->email) . '</td>';
-                    echo '<td>' . ($row->result ? '<span style="color: red;">Disposable</span>' : '<span style="color: green;">Valid</span>') . '</td>';
+                    echo '<td>' . ($row->result ? '<span style="color: red;">' . esc_html__('Disposable', 'throwaway-lookup') . '</span>' : '<span style="color: green;">' . esc_html__('Valid', 'throwaway-lookup') . '</span>') . '</td>';
                     echo '<td>' . esc_html($row->source) . '</td>';
                     echo '</tr>';
                 }
             } else {
-                echo '<tr><td colspan="5">No logs found.</td></tr>';
-            }
-
-            // Ensure nonce verification before processing actions
-            if (!empty($gdpr_subject)) {
-                if (check_admin_referer('gdpr_tools_nonce', 'gdpr_tools_nonce_field')) {
-                    $like = '%' . $wpdb->esc_like($gdpr_subject) . '%';
-                    
-                    $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", $like), ARRAY_A);
-                    if ($logs) {
-                        if (isset($_POST['delete_subject_logs'])) {
-                            $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", $like));
-                            echo '<div class="updated"><p>Logs deleted for: ' . esc_html($gdpr_subject) . '</p></div>';
-                        } elseif (isset($_POST['export_subject_logs'])) {
-                            // Set headers for CSV download
-                            nocache_headers(); // Ensures no caching
-                            header('Content-Type: text/csv; charset=utf-8');
-                            header('Content-Disposition: attachment; filename="subject-logs.csv"');
-    
-                            $output = fopen('php://output', 'w'); // WP_Filesystem doesn't support writing to php://output
-    
-                            // Write the CSV header
-                            fputcsv($output, array_keys($logs[0]));
-    
-                            // Write our data rows
-                            foreach ($logs as $log) {
-                                fputcsv($output, $log);
-                            }
-                            
-                            // Close the output resource
-                            fclose($output);
-                            exit;
-                        }
-                    }
-                    else {
-                        echo '<div class="notice notice-warning"><p>No logs found for: ' . esc_html($gdpr_subject) . '</p></div>';
-                    }
-                } else {
-                    echo '<div class="notice notice-error"><p>Nonce verification failed.</p></div>';
-                }
+                echo '<tr><td colspan="5">' . esc_html__('No logs found.', 'throwaway-lookup') . '</td></tr>';
             }
             ?>
         </tbody>

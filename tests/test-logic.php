@@ -9,6 +9,7 @@ class ThrowawayLookupLogicTest extends WP_UnitTestCase {
         $this->plugin = new ThrowawayEmailLookup();
         update_option('throwaway_lookup_allowed_list', "trusted.com\nadmin@trusted.com");
         update_option('throwaway_lookup_log_level', 'domain');
+        wp_set_current_user(1); // Admin capabilities are required for export/deletion tests.
     }
 
     public function test_allow_list_blocks_check() {
