@@ -5,7 +5,7 @@
  * Version: 1.0.0
  * Author: Iocium
  * License: MIT
- * Text Domain: throwaway-lookup
+ * Text Domain: throwaway-cloud-e-mail-check
  * Domain Path: /languages
  */
 
@@ -233,7 +233,7 @@ class ThrowawayEmailLookup {
     public function data_eraser($email_address, $page = 1) {
         global $wpdb;
         $table = $wpdb->prefix . 'throwaway_logs';
-        $count = $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($email_address) . '%'));
+        $count = $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE email LIKE %s", $table, '%' . $wpdb->esc_like($email_address) . '%'));
         $this->log_audit_event("Deleted $count logs for email: $email_address");
 
         return [
@@ -251,7 +251,7 @@ class ThrowawayEmailLookup {
 
         global $wpdb;
         $table = $wpdb->prefix . 'throwaway_logs';
-        $count = $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($subject) . '%'));
+        $count = $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE email LIKE %s", $table, '%' . $wpdb->esc_like($subject) . '%'));
         $this->log_audit_event("Deleted $count logs for subject: $subject");
     }
 

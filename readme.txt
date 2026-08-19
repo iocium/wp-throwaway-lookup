@@ -2,7 +2,7 @@
 Contributors: iocium
 Tags: spam, email validation, disposable email, throwaway email, signup spam
 Requires at least: 5.0
-Tested up to: 6.8
+Tested up to: 7.0
 Requires PHP: 7.2
 Stable tag: 1.0.0
 License: MIT
@@ -22,7 +22,7 @@ throwaway.cloud E-Mail Check protects your WordPress site from temporary or disp
 * Admin interface for searching, filtering, and exporting logs
 * GDPR/CCPA deletion and export tools
 * Developer-friendly action/filter hooks
-* Full PHPUnit test suite with Codecov integration
+* Full PHPUnit test suite
 
 == Installation ==
 
