@@ -72,6 +72,11 @@ install_test_suite() {
     exit 1
   fi
 
+  if ! command -v svn >/dev/null 2>&1; then
+    echo "Error: svn is required to install the WordPress test suite." >&2
+    exit 1
+  fi
+
   echo "Installing WordPress ${wp_version} test suite ..."
   mkdir -p "$WP_TESTS_DIR"
   svn co --quiet "https://develop.svn.wordpress.org/tags/${wp_version}/tests/phpunit/includes/" "$WP_TESTS_DIR/includes"
