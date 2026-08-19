@@ -15,7 +15,7 @@ jobs:
 
     - name: Package for WordPress
       run: |
-        zip -r throwaway-lookup.zip . \
+        zip -r throwawaycloud-email-lookup.zip . \
           -x "tests/*" \
           -x "bin/*" \
           -x ".git/*" \
@@ -28,4 +28,4 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: wordpress-plugin-package
-        path: throwaway-lookup.zip
+        path: throwawaycloud-email-lookup.zip
