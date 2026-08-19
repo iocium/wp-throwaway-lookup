@@ -32,7 +32,7 @@ class ThrowawayIntegrationTest extends WP_UnitTestCase {
     public function test_registration_blocks_disposable_email() {
         $errors = new WP_Error();
         $result = $this->plugin->filter_registration($errors, 'user', 'user@mailinator.com');
-        $this->assertTrue($result->get_error_code());
+        $this->assertNotEmpty($result->get_error_code());
         $this->assertArrayHasKey('throwaway_email', $result->errors);
     }
 }
