@@ -117,21 +117,31 @@ $error_code = isset($_GET['throwaway_error']) ? sanitize_text_field(wp_unslash($
         </thead>
         <tbody>
             <?php
-            $sql = "SELECT * FROM %i";
-            $params = [$table];
-
-            if (!empty($log_filter_context)) {
-                $sql .= " WHERE context = %s";
-                $params[] = $log_filter_context;
+            if (!empty($log_filter_context) && !empty($log_filter_email)) {
+                $logs = $wpdb->get_results($wpdb->prepare(
+                    "SELECT * FROM %i WHERE context = %s AND email LIKE %s ORDER BY timestamp DESC LIMIT 50",
+                    $table,
+                    $log_filter_context,
+                    '%' . $wpdb->esc_like($log_filter_email) . '%'
+                ));
+            } elseif (!empty($log_filter_context)) {
+                $logs = $wpdb->get_results($wpdb->prepare(
+                    "SELECT * FROM %i WHERE context = %s ORDER BY timestamp DESC LIMIT 50",
+                    $table,
+                    $log_filter_context
+                ));
+            } elseif (!empty($log_filter_email)) {
+                $logs = $wpdb->get_results($wpdb->prepare(
+                    "SELECT * FROM %i WHERE email LIKE %s ORDER BY timestamp DESC LIMIT 50",
+                    $table,
+                    '%' . $wpdb->esc_like($log_filter_email) . '%'
+                ));
+            } else {
+                $logs = $wpdb->get_results($wpdb->prepare(
+                    "SELECT * FROM %i ORDER BY timestamp DESC LIMIT 50",
+                    $table
+                ));
             }
-
-            if (!empty($log_filter_email)) {
-                $sql .= (!empty($log_filter_context) ? " AND " : " WHERE ") . "email LIKE %s";
-                $params[] = '%' . $wpdb->esc_like($log_filter_email) . '%';
-            }
-
-            $sql .= " ORDER BY timestamp DESC LIMIT 50";
-            $logs = $wpdb->get_results($wpdb->prepare($sql, ...$params));
             if ($logs) {
                 foreach ($logs as $row) {
                     echo '<tr>';

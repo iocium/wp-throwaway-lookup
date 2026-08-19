@@ -310,13 +310,26 @@ class ThrowawayEmailLookup {
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="subject-logs.csv"');
 
-        $output = fopen('php://output', 'w');
-        fputcsv($output, array_keys($logs[0]));
+        $output = $this->format_csv_row(array_keys($logs[0]));
         foreach ($logs as $log) {
-            fputcsv($output, $log);
+            $output .= $this->format_csv_row($log);
         }
-        fclose($output);
+        echo $output;
         exit;
+    }
+
+    /**
+     * Format an array of fields as a CSV line without direct filesystem calls.
+     */
+    private function format_csv_row(array $fields) {
+        $escaped = array_map(function ($field) {
+            $field = str_replace('"', '""', (string) $field);
+            if (strpos($field, ',') !== false || strpos($field, '"') !== false || strpos($field, "\n") !== false || strpos($field, "\r") !== false) {
+                $field = '"' . $field . '"';
+            }
+            return $field;
+        }, $fields);
+        return implode(',', $escaped) . "\n";
     }
 
     /**
