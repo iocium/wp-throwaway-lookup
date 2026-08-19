@@ -182,7 +182,7 @@ class ThrowawayEmailLookup {
         global $wpdb;
         $table = $wpdb->prefix . 'throwaway_logs';
         $items = [];
-        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($email_address) . '%'), ARRAY_A);
+        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM %i WHERE email LIKE %s", $table, '%' . $wpdb->esc_like($email_address) . '%'), ARRAY_A);
 
         foreach ($logs as $log) {
             $items[] = [
@@ -271,7 +271,7 @@ class ThrowawayEmailLookup {
         }
 
         $table = $wpdb->prefix . 'throwaway_logs';
-        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($subject) . '%'), ARRAY_A);
+        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM %i WHERE email LIKE %s", $table, '%' . $wpdb->esc_like($subject) . '%'), ARRAY_A);
 
         set_transient($cache_key, $logs, 3600);
         $this->log_audit_event("Exported logs for subject: $subject");
@@ -297,7 +297,7 @@ class ThrowawayEmailLookup {
         global $wpdb;
         $table = $wpdb->prefix . 'throwaway_logs';
         $like = '%' . $wpdb->esc_like($subject) . '%';
-        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE email LIKE %s", $like), ARRAY_A);
+        $logs = $wpdb->get_results($wpdb->prepare("SELECT * FROM %i WHERE email LIKE %s", $table, $like), ARRAY_A);
 
         if (empty($logs)) {
             wp_safe_redirect(admin_url('options-general.php?page=throwaway-lookup&throwaway_error=no-logs'));
@@ -336,7 +336,7 @@ class ThrowawayEmailLookup {
 
         global $wpdb;
         $table = $wpdb->prefix . 'throwaway_logs';
-        $count = $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE email LIKE %s", '%' . $wpdb->esc_like($subject) . '%'));
+        $count = $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE email LIKE %s", $table, '%' . $wpdb->esc_like($subject) . '%'));
         $this->log_audit_event("Deleted $count logs for subject: $subject");
 
         wp_safe_redirect(admin_url('options-general.php?page=throwaway-lookup&throwaway_deleted=' . (int) $count));
